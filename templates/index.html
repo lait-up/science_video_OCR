@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Video Number Extractor</title>
+    <link href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #videoContainer {
+            position: relative;
+            display: inline-block;
+            width: 60%;
+            max-width: 800px;
+            resize: both;
+            overflow: hidden;
+        }
+        #videoPlayer {
+            width: 100%;
+            height: auto;
+        }
+        #drawingCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+        #videoControls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            display: flex;
+            align-items: center;
+        }
+        #playPauseBtn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        #seekBar {
+            flex-grow: 1;
+            margin: 0 10px;
+        }
+        #currentTime {
+            color: white;
+            margin-right: 10px;
+        }
+        #controls, #dataControls {
+            margin-top: 10px;
+        }
+        #loadingIndicator {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 9999;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 20px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #dataTable {
+            margin-top: 20px;
+            width: 100%;
+            height: 400px;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <h1>Interactive Video Number Extractor</h1>
+    <input type="file" id="videoUpload" accept="video/*">
+    <div id="videoContainer">
+        <video id="videoPlayer"></video>
+        <canvas id="drawingCanvas"></canvas>
+        <div id="videoControls">
+            <button id="playPauseBtn">▶</button>
+            <input type="range" id="seekBar" value="0">
+            <span id="currentTime">0:00 / 0:00</span>
+        </div>
+    </div>
+    <div id="controls">
+        <button id="clearButton">Clear Rectangles</button>
+        <button id="processButton" disabled>Process Video</button>
+    </div>
+    <div id="dataControls" style="display: none;">
+        <button id="downloadButton">Download CSV</button>
+    </div>
+    <div id="dataTable"></div>
+    <div id="loadingIndicator">
+        <div class="spinner"></div>
+        <p>Processing, please wait...</p>
+    </div>
+
+    <script>
+        const videoUpload = document.getElementById('videoUpload');
+        const videoContainer = document.getElementById('videoContainer');
+        const videoPlayer = document.getElementById('videoPlayer');
+        const drawingCanvas = document.getElementById('drawingCanvas');
+        const ctx = drawingCanvas.getContext('2d');
+        const processButton = document.getElementById('processButton');
+        const clearButton = document.getElementById('clearButton');
+        const downloadButton = document.getElementById('downloadButton');
+        const dataControls = document.getElementById('dataControls');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const seekBar = document.getElementById('seekBar');
+        const currentTimeDisplay = document.getElementById('currentTime');
+        
+        let filepath;
+        let isDrawing = false;
+        let startX, startY;
+        let rectangles = [];
+        let hot;
+        let extractedData = [];
+
+        function resizeCanvas() {
+            drawingCanvas.width = videoPlayer.clientWidth;
+            drawingCanvas.height = videoPlayer.clientHeight;
+            drawAllRects();
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        videoUpload.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                filepath = data.filepath;
+                videoPlayer.src = URL.createObjectURL(file);
+                videoPlayer.onloadedmetadata = function() {
+                    resizeCanvas();
+                    processButton.disabled = false;
+                    seekBar.max = videoPlayer.duration;
+                    currentTimeDisplay.textContent = `${formatTime(0)} / ${formatTime(videoPlayer.duration)}`;
+                };
+            })
+            .catch(error => console.error('Error:', error));
+        });
+
+        // Video control functions
+        playPauseBtn.addEventListener('click', togglePlayPause);
+        videoPlayer.addEventListener('click', togglePlayPause);
+
+        function togglePlayPause() {
+            if (videoPlayer.paused) {
+                videoPlayer.play();
+                playPauseBtn.textContent = '⏸';
+            } else {
+                videoPlayer.pause();
+                playPauseBtn.textContent = '▶';
+            }
+        }
+
+        seekBar.addEventListener('input', function() {
+            videoPlayer.currentTime = seekBar.value;
+        });
+
+        videoPlayer.addEventListener('timeupdate', function() {
+            seekBar.value = videoPlayer.currentTime;
+            currentTimeDisplay.textContent = `${formatTime(videoPlayer.currentTime)} / ${formatTime(videoPlayer.duration)}`;
+        });
+
+        function formatTime(time) {
+            const minutes = Math.floor(time / 60);
+            const seconds = Math.floor(time % 60);
+            return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        // Drawing functions
+        drawingCanvas.addEventListener('mousedown', startDrawing);
+        drawingCanvas.addEventListener('mousemove', draw);
+        drawingCanvas.addEventListener('mouseup', endDrawing);
+        drawingCanvas.addEventListener('mouseout', endDrawing);
+
+        function startDrawing(e) {
+            isDrawing = true;
+            [startX, startY] = getMousePos(drawingCanvas, e);
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            const [mouseX, mouseY] = getMousePos(drawingCanvas, e);
+            drawRect(startX, startY, mouseX - startX, mouseY - startY);
+        }
+
+        function endDrawing(e) {
+            if (isDrawing) {
+                isDrawing = false;
+                const [mouseX, mouseY] = getMousePos(drawingCanvas, e);
+                rectangles.push({
+                    x: Math.min(startX, mouseX),
+                    y: Math.min(startY, mouseY),
+                    width: Math.abs(mouseX - startX),
+                    height: Math.abs(mouseY - startY)
+                });
+                drawAllRects();
+            }
+        }
+
+        function getMousePos(canvas, evt) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            return [
+                (evt.clientX - rect.left) * scaleX,
+                (evt.clientY - rect.top) * scaleY
+            ];
+        }
+
+        function drawRect(x, y, w, h) {
+            ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            drawAllRects();
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, w, h);
+            displayDimensions(x, y, w, h);
+        }
+
+        function drawAllRects() {
+            rectangles.forEach(rect => {
+                ctx.strokeStyle = 'red';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+                displayDimensions(rect.x, rect.y, rect.width, rect.height);
+            });
+        }
+
+        function displayDimensions(x, y, w, h) {
+            const text = `x: ${Math.round(x)}, y: ${Math.round(y)}, w: ${Math.round(w)}, h: ${Math.round(h)}`;
+            const padding = 2;
+            ctx.font = '12px Arial';
+            
+            const textMetrics = ctx.measureText(text);
+            const textWidth = textMetrics.width;
+            const textHeight = 12;
+            
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+            ctx.fillRect(x, y - textHeight - padding * 2, textWidth + padding * 2, textHeight + padding * 2);
+            
+            ctx.fillStyle = 'white';
+            ctx.fillText(text, x + padding, y - padding);
+        }
+
+        clearButton.addEventListener('click', function() {
+            ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            rectangles = [];
+        });
+
+        processButton.addEventListener('click', function() {
+            if (!filepath || rectangles.length === 0) {
+                alert('Please upload a video and draw at least one rectangle before processing.');
+                return;
+            }
+            document.getElementById('loadingIndicator').style.display = 'block';
+
+            fetch('/process', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    filepath: filepath,
+                    regions: rectangles
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('loadingIndicator').style.display = 'none';
+                extractedData = data;
+                initializeHandsontable(data);
+                dataControls.style.display = 'block';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('loadingIndicator').style.display = 'none';
+                alert('An error occurred while processing the video. Please try again.');
+            });
+        });
+
+        function initializeHandsontable(data) {
+            const container = document.getElementById('dataTable');
+            hot = new Handsontable(container, {
+                data: data,
+                rowHeaders: true,
+                colHeaders: Object.keys(data[0]),
+                width: '100%',
+                height: 400,
+                licenseKey: 'non-commercial-and-evaluation'
+            });
+
+            videoPlayer.addEventListener('timeupdate', function() {
+                const currentTime = videoPlayer.currentTime;
+                const rowIndex = data.findIndex(row => parseFloat(row.time) > currentTime) - 1;
+                if (rowIndex >= 0) {
+                    hot.selectCell(rowIndex, 0);
+                }
+            });
+        }
+
+        downloadButton.addEventListener('click', function() {
+            const currentData = hot.getData();
+            const headers = Object.keys(extractedData[0]);
+            const csvData = [headers].concat(currentData);
+
+            fetch('/download', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(csvData)
+            })
+            .then(response => response.blob())
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = 'numbers_by_time.csv';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+            })
+            .catch(error => console.error('Error:', error));
+        });
+
+        // Make video resizable
+        let isResizing = false;
+        let startResizeX, startResizeY, startResizeWidth, startResizeHeight;
+
+        videoContainer.addEventListener('mousedown', initResize, false);
+
+        function initResize(e) {
+            if (e.target !== videoContainer) return;
+            isResizing = true;
+            startResizeX = e.clientX;
+            startResizeY = e.clientY;
+            startResizeWidth = parseInt(document.defaultView.getComputedStyle(videoContainer).width, 10);
+            startResizeHeight = parseInt(document.defaultView.getComputedStyle(videoContainer).height, 10);
+            document.addEventListener('mousemove', resize, false);
+            document.addEventListener('mouseup', stopResize, false);
+        }
+
+        function resize(e) {
+            if (!isResizing) return;
+            videoContainer.style.width = (startResizeWidth + e.clientX - startResizeX) + 'px';
+            videoContainer.style.height = (startResizeHeight + e.clientY - startResizeY) + 'px';
+            resizeCanvas();
+        }
+
+        function stopResize() {
+            isResizing = false;
+            document.removeEventListener('mousemove', resize, false);
+            document.removeEventListener('mouseup', stopResize, false);
+        }
+    </script>
+</body>
+</html>
