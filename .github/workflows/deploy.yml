@@ -13,9 +13,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
 
-    - name: Kill any existing Gunicorn processes
-      run: pkill gunicorn || true
-      
     - name: Deploy to server
       uses: appleboy/ssh-action@v0.1.4
       with:
@@ -24,6 +21,7 @@ jobs:
         key: ${{ secrets.SERVER_SSH_KEY }}  # 在 GitHub Secrets 中添加 SERVER_SSH_KEY
         port: 22
         script: |
+          sudo systemctl stop gunicorn
           cd /home/laitup/science_video_OCR/
           git pull
-          sudo systemctl restart gunicorn
+          sudo systemctl start gunicorn
