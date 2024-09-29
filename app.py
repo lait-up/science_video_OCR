@@ -7,7 +7,7 @@ from flask import Flask, request, send_file, render_template, jsonify
 from werkzeug.utils import secure_filename
 import csv
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static')
 
 UPLOAD_FOLDER = tempfile.mkdtemp()
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
