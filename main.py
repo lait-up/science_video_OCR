@@ -2,11 +2,12 @@ import os
 import cv2
 import pytesseract
 import numpy as np
-import webview
+# import webview
 import tempfile
 from flask import Flask, request, send_file, render_template, jsonify
 from werkzeug.utils import secure_filename
 import csv
+import threading
 
 app = Flask(__name__)
 
@@ -91,6 +92,13 @@ def download_csv():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+def start_server():
+    app.run(port=5000, debug=False, use_reloader=False)
+
 if __name__ == '__main__':
-    webview.create_window("Video Number Extractor", app, width=800, height=600)
-    webview.start()
+    # server_thread = threading.Thread(target=start_server)
+    # server_thread.daemon = True
+    # server_thread.start()
+    start_server()
+    # webview.create_window('Flask App', 'http://127.0.0.1:5000')
+    # webview.start()
