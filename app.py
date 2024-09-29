@@ -2,12 +2,10 @@ import os
 import cv2
 import pytesseract
 import numpy as np
-# import webview
 import tempfile
 from flask import Flask, request, send_file, render_template, jsonify
 from werkzeug.utils import secure_filename
 import csv
-import threading
 
 app = Flask(__name__)
 
@@ -20,8 +18,10 @@ def extract_numbers_from_video(video_path, regions):
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     
     data = []
+    frame_interval = int(fps * 0.2)  # 200ms interval
     
-    for frame_number in range(frame_count):
+    for frame_number in range(0, frame_count, frame_interval):
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
         ret, frame = cap.read()
         if not ret:
             break
@@ -85,20 +85,13 @@ def download_csv():
         output_file = os.path.join(app.config['UPLOAD_FOLDER'], 'numbers_by_time.csv')
         
         with open(output_file, 'w', newline='') as f:
-            writer = csv.writer(f)
+            writer = csv.DictWriter(f, fieldnames=data[0].keys())
+            writer.writeheader()
             writer.writerows(data)
         
         return send_file(output_file, as_attachment=True, download_name='numbers_by_time.csv')
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-def start_server():
-    app.run(port=5000, debug=False, use_reloader=False)
-
 if __name__ == '__main__':
-    # server_thread = threading.Thread(target=start_server)
-    # server_thread.daemon = True
-    # server_thread.start()
-    start_server()
-    # webview.create_window('Flask App', 'http://127.0.0.1:5000')
-    # webview.start()
+    app.run(debug=True)
