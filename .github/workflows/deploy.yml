@@ -24,4 +24,6 @@ jobs:
           sudo systemctl stop gunicorn
           cd /home/laitup/science_video_OCR/
           git pull
+          source /home/laitup/science_video_OCR/venv/bin/activate
+          pip install -r requirements.txt
           sudo systemctl start gunicorn
