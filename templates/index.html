@@ -96,7 +96,7 @@
         </video>
     </div>
 
-    <div id="controlButtons" style="display: none;">
+    <div id="controlButtons" style="display: flex;">
         <button id="clearRectanglesBtn">Clear Rectangles</button>
         <button id="processVideoBtn">Process Video</button>
     </div>
@@ -130,7 +130,7 @@
 
     // Initially hide the video container and control buttons
     videoContainer.style.display = 'none';
-    controlButtons.style.display = 'none';
+    // controlButtons.style.display = 'none';
 
     videoInput.addEventListener('change', (event) => {
         const file = event.target.files[0];
