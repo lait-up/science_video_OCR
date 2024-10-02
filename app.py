@@ -60,9 +60,13 @@ def extract_numbers_from_video(video_path, regions):
       print(e)
     return data
 
-@app.route('/')
-def index():
-    return render_template('index.html')
+# @app.route('/')
+# def index():
+#     return render_template('index.html')
+
+@app.route('/test')
+def test():
+    return jsonify({'code': 200, 'message': 'Test successfully'})
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
