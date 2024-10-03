@@ -21,7 +21,7 @@ jobs:
         key: ${{ secrets.NYCU_SSH_KEY }}  
         port: 22
         script: |
-          sudo systemctl stop gunicorn_science_video_OCR
+          ssh -vvv -o StrictHostKeyChecking=no ${{ secrets.NYCU_USER }}@${{ secrets.NYCU_HOST }}
           cd /home/bclab-ai/Projects/science_video_OCR/
           git pull origin easyocr
           source /home/bclab-ai/Projects/science_video_OCR/venv/bin/activate
