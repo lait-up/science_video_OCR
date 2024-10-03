@@ -20,45 +20,61 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
+import easyocr
 def extract_numbers_from_video(video_path, regions):
-    try:
-      cap = cv2.VideoCapture(video_path)
-      fps = cap.get(cv2.CAP_PROP_FPS)
-      frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-      
-      data = []
-      frame_interval = int(fps * 0.2)  # 200ms interval
-      
-      for frame_number in range(0, frame_count, frame_interval):
-          cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
-          ret, frame = cap.read()
-          if not ret:
-              break
-          
-          time = frame_number / fps
-          row = {'time': f"{time:.2f}"}
-          
-          for i, region in enumerate(regions):
-              x, y, width, height = map(int, [region['x'], region['y'], region['width'], region['height']])
-              roi = frame[y:y+height, x:x+width]
-              
-              gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-              thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
-              
-              text = pytesseract.image_to_string(thresh, config='--psm 6 --oem 3 -c tessedit_char_whitelist=0123456789')
-              
-              try:
-                  number = int(text.strip())
-                  row[f'Region{i+1}'] = str(number)
-              except ValueError:
-                  row[f'Region{i+1}'] = ''
-          
-          data.append(row)
-      
-      cap.release()
-    except Exception as e:
-      print(e)
+    cap = cv2.VideoCapture(video_path)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    
+    # Initialize EasyOCR reader
+    reader = easyocr.Reader(['en'], gpu=True)  # Use GPU if available
+    
+    data = []
+    # frame_interval = int(fps * 0.2)  # 200ms interval
+    frame_interval = int(fps)  
+    
+    for frame_number in range(0, frame_count, frame_interval):
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+        ret, frame = cap.read()
+        if not ret:
+            break
+        
+        time = frame_number / fps
+        row = {'time': f"{time:.2f}"}
+        
+        for i, region in enumerate(regions):
+            x, y, width, height = map(int, [region['x'], region['y'], region['width'], region['height']])
+            roi = frame[y:y+height, x:x+width]
+            
+            # Convert to grayscale
+            gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+            
+            # Apply CLAHE (Contrast Limited Adaptive Histogram Equalization)
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+            enhanced = clahe.apply(gray)
+            
+            # Denoise
+            denoised = cv2.fastNlMeansDenoising(enhanced, None, 10, 7, 21)
+            
+            # Use EasyOCR to detect text
+            results = reader.readtext(denoised, allowlist='0123456789')
+            
+            if results:
+                # Extract the text with the highest confidence
+                text = max(results, key=lambda x: x[2])[1]
+                try:
+                    number = int(text.strip())
+                    row[f'Region{i+1}'] = str(number)
+                except ValueError:
+                    row[f'Region{i+1}'] = ''
+            else:
+                row[f'Region{i+1}'] = ''
+        
+        data.append(row)
+    
+    cap.release()
     return data
+
 
 # @app.route('/')
 # def index():
