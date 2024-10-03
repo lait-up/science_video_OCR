@@ -14,16 +14,18 @@ jobs:
       uses: actions/checkout@v2
 
     - name: Deploy to server
-      uses: appleboy/ssh-action@v1.0.3
+      uses: appleboy/ssh-action@v0.1.4
       with:
         host: ${{ secrets.NYCU_HOST }}
-        username: ${{ secrets.NYCU_USER }}  
-        key: ${{ secrets.NYCU_SSH_KEY }}  
+        username: ${{ secrets.NYCU_USER }}
+        key: ${{ secrets.NYCU_SSH_KEY }}
         port: 22
+        timeout: 60s
+        command_timeout: 20m
         script: |
-          ssh -vvv -o StrictHostKeyChecking=no ${{ secrets.NYCU_USER }}@${{ secrets.NYCU_HOST }}
           cd /home/bclab-ai/Projects/science_video_OCR/
-          git pull origin easyocr
+          git pull origin easyocr --rebase
           source /home/bclab-ai/Projects/science_video_OCR/venv/bin/activate
           pip install -r requirements.txt
+          echo "Starting Gunicorn"
           sudo systemctl start gunicorn_science_video_OCR
