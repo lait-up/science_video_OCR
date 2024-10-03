@@ -21,9 +21,9 @@ jobs:
         key: ${{ secrets.NYCU_SSH_KEY }}  
         port: 22
         script: |
-          sudo systemctl stop gunicorn
-          cd /home/laitup/science_video_OCR/
+          sudo systemctl stop gunicorn_science_video_OCR
+          cd /home/bclab-ai/science_video_OCR/
           git pull
-          source /home/laitup/science_video_OCR/venv/bin/activate
+          source /home/bclab-ai/science_video_OCR/venv/bin/activate
           pip install -r requirements.txt
-          sudo systemctl start gunicorn
+          sudo systemctl start gunicorn_science_video_OCR
