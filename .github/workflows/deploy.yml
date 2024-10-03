@@ -22,8 +22,8 @@ jobs:
         port: 22
         script: |
           sudo systemctl stop gunicorn_science_video_OCR
-          cd /home/bclab-ai/science_video_OCR/
-          git pull
-          source /home/bclab-ai/science_video_OCR/venv/bin/activate
+          cd /home/bclab-ai/Projects/science_video_OCR/
+          git pull origin easyocr
+          source /home/bclab-ai/Projects/science_video_OCR/venv/bin/activate
           pip install -r requirements.txt
           sudo systemctl start gunicorn_science_video_OCR
