@@ -3,7 +3,7 @@ name: Deploy Flask App
 on:
   push:
     branches:
-      - main 
+      - easyocr
 
 jobs:
   deploy:
@@ -16,9 +16,9 @@ jobs:
     - name: Deploy to server
       uses: appleboy/ssh-action@v0.1.4
       with:
-        host: ${{ secrets.SERVER_HOST }}  # 在 GitHub Secrets 中添加 SERVER_HOST
-        username: ${{ secrets.SERVER_USER }}  # 在 GitHub Secrets 中添加 SERVER_USER
-        key: ${{ secrets.SERVER_SSH_KEY }}  # 在 GitHub Secrets 中添加 SERVER_SSH_KEY
+        host: ${{ secrets.NYCU_HOST }}
+        username: ${{ secrets.NYCU_USER }}  
+        key: ${{ secrets.NYCU_SSH_KEY }}  
         port: 22
         script: |
           sudo systemctl stop gunicorn
