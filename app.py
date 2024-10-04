@@ -40,7 +40,10 @@ def extract_numbers_from_video(video_path, regions):
             break
         
         time = frame_number / fps
-        row = {'time': f"{time:.2f}"}
+        # row = {'time': f"{time:.2f}"}
+        row = {}
+        row['time'] = f"{time:.2f}"
+
         
         for i, region in enumerate(regions):
             x, y, width, height = map(int, [region['x'], region['y'], region['width'], region['height']])
