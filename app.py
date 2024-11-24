@@ -7,74 +7,79 @@ import pytesseract
 import numpy as np
 import tempfile
 from flask import Flask, request, send_file, render_template, jsonify
+from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import csv
 
-app = Flask(__name__, static_folder='static')
+app = Flask(__name__, static_folder="static")
+CORS(app)
 
 # UPLOAD_FOLDER = tempfile.mkdtemp()
 # 設定上傳目錄為當前專案的 static/videos 目錄
-UPLOAD_FOLDER = os.path.join(app.static_folder, 'videos')
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+UPLOAD_FOLDER = os.path.join(app.static_folder, "videos")
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
 import easyocr
+
+
 def extract_numbers_from_video(video_path, regions):
     cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS)
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    
+
     # Initialize EasyOCR reader
-    reader = easyocr.Reader(['en'], gpu=True)  # Use GPU if available
-    
+    reader = easyocr.Reader(["en"], gpu=True)  # Use GPU if available
+
     data = []
     # frame_interval = int(fps * 0.2)  # 200ms interval
-    frame_interval = int(fps)  
-    
+    frame_interval = int(fps)
+
     for frame_number in range(0, frame_count, frame_interval):
         cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
         ret, frame = cap.read()
         if not ret:
             break
-        
+
         time = frame_number / fps
         # row = {'time': f"{time:.2f}"}
         row = {}
-        row['time'] = f"{time:.2f}"
+        row["time"] = f"{time:.2f}"
 
-        
         for i, region in enumerate(regions):
-            x, y, width, height = map(int, [region['x'], region['y'], region['width'], region['height']])
-            roi = frame[y:y+height, x:x+width]
-            
+            x, y, width, height = map(
+                int, [region["x"], region["y"], region["width"], region["height"]]
+            )
+            roi = frame[y : y + height, x : x + width]
+
             # Convert to grayscale
             gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-            
+
             # Apply CLAHE (Contrast Limited Adaptive Histogram Equalization)
-            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
             enhanced = clahe.apply(gray)
-            
+
             # Denoise
             denoised = cv2.fastNlMeansDenoising(enhanced, None, 10, 7, 21)
-            
+
             # Use EasyOCR to detect text
-            results = reader.readtext(denoised, allowlist='0123456789')
-            
+            results = reader.readtext(denoised, allowlist="0123456789")
+
             if results:
                 # Extract the text with the highest confidence
                 text = max(results, key=lambda x: x[2])[1]
                 try:
                     number = int(text.strip())
-                    row[f'Region{i+1}'] = str(number)
+                    row[f"Region{i+1}"] = str(number)
                 except ValueError:
-                    row[f'Region{i+1}'] = ''
+                    row[f"Region{i+1}"] = ""
             else:
-                row[f'Region{i+1}'] = ''
-        
+                row[f"Region{i+1}"] = ""
+
         data.append(row)
-    
+
     cap.release()
     return data
 
@@ -83,42 +88,48 @@ def extract_numbers_from_video(video_path, regions):
 # def index():
 #     return render_template('index.html')
 
-@app.route('/test', methods=['GET'])
-def test():
-    return jsonify({'code': 200, 'message': 'Test successfully'})
 
-@app.route('/upload', methods=['POST'])
+@app.route("/test", methods=["GET"])
+def test():
+    return jsonify({"code": 200, "message": "Test successfully"})
+
+
+@app.route("/upload", methods=["POST"])
 def upload_file():
-    if 'file' not in request.files:
-        return jsonify({'code': 400, 'error': 'No file part'}), 400
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'code': 400, 'error': 'No selected file'}), 400
+    if "file" not in request.files:
+        return jsonify({"code": 400, "error": "No file part"}), 400
+    file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"code": 400, "error": "No selected file"}), 400
     if file:
         unique_filename = f"{uuid.uuid4().hex}_{secure_filename(file.filename)}"
         # filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+        filepath = os.path.join(app.config["UPLOAD_FOLDER"], unique_filename)
         file.save(filepath)
-        return jsonify({'code': 200,'message': 'File uploaded successfully', 'filePath': filepath})
+        return jsonify(
+            {"code": 200, "message": "File uploaded successfully", "filePath": filepath}
+        )
 
-@app.route('/process', methods=['POST'])
+
+@app.route("/process", methods=["POST"])
 def process_video_regions():
     try:
         data = request.json
-        video_path = data['filePath']
-        regions = data['regions']
+        video_path = data["filePath"]
+        regions = data["regions"]
         result_data = extract_numbers_from_video(video_path, regions)
-        return jsonify({'code': 200, 'data': result_data})
+        return jsonify({"code": 200, "data": result_data})
     except Exception as e:
-        return jsonify({'code': 500, 'error': str(e)}), 500
+        return jsonify({"code": 500, "error": str(e)}), 500
 
-@app.route('/download', methods=['POST'])
+
+@app.route("/download", methods=["POST"])
 def download_csv():
     try:
-        data = request.json['tableData']
+        data = request.json["tableData"]
         # output_file = os.path.join(app.config['UPLOAD_FOLDER'], 'numbers_by_time.csv')
         output = io.StringIO()
-        
+
         # with open(output_file, 'w', newline='') as f:
         #     writer = csv.DictWriter(f, fieldnames=data[0].keys())
         #     writer.writeheader()
@@ -129,18 +140,19 @@ def download_csv():
         output.seek(0)
         # return send_file(output_file, as_attachment=True, download_name='numbers_by_time.csv')
         return send_file(
-            io.BytesIO(output.getvalue().encode('utf-8')),
+            io.BytesIO(output.getvalue().encode("utf-8")),
             as_attachment=True,
-            download_name='numbers_by_time.csv',
-            mimetype='text/csv'
+            download_name="numbers_by_time.csv",
+            mimetype="text/csv",
         )
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
-@app.route('/delete_uploaded_files', methods=['POST'])
+
+@app.route("/delete_uploaded_files", methods=["POST"])
 def delete_uploaded_files():
     data = request.json
-    file_paths = data.get('filePaths', [])
+    file_paths = data.get("filePaths", [])
     for file_path in file_paths:
         if os.path.exists(file_path):
             try:
@@ -148,8 +160,9 @@ def delete_uploaded_files():
                 print(f"Deleted file: {file_path}")
             except Exception as e:
                 print(f"Error deleting file {file_path}: {e}")
-    
-    return jsonify({'message': 'Files deleted successfully', 'code': 200})
 
-if __name__ == '__main__':
+    return jsonify({"message": "Files deleted successfully", "code": 200})
+
+
+if __name__ == "__main__":
     app.run(debug=True)
