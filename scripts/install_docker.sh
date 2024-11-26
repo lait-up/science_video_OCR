@@ -44,6 +44,7 @@ echo "Running Docker container..."
 sudo docker run -d \
   --name science-video-ocr-api \
   -p 5000:5000 \
+  --bind 0.0.0.0 \
   -v $(pwd):/app \
   science-video-ocr-api
 
