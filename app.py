@@ -91,7 +91,7 @@ def extract_numbers_from_video(video_path, regions):
 
 @app.route("/test", methods=["GET"])
 def test():
-    return jsonify({"code": 200, "message": "Test successfully"})
+    return jsonify({"code": 200, "message": "Test successfully - 11261152"})
 
 
 @app.route("/upload", methods=["POST"])

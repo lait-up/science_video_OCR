@@ -26,6 +26,8 @@ sudo docker compose version
 
 echo "Docker installation is complete!"
 
+sudo systemctl enable docker.service
+
 cd $(dirname $(dirname $(realpath $0)))
 chmod +x ./scripts/entrypoint.sh
 
@@ -46,3 +48,5 @@ sudo docker run -d \
   science-video-ocr-api
 
 echo "Docker container is running at http://localhost:5000"
+
+sudo docker update --restart=always science-video-ocr-api
