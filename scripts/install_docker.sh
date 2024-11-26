@@ -27,6 +27,7 @@ sudo docker compose version
 echo "Docker installation is complete!"
 
 cd $(dirname $(dirname $(realpath $0)))
+chmod +x ./scripts/entrypoint.sh
 
 echo "Building Docker image..."
 sudo docker build -t science-video-ocr-api .
